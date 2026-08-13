@@ -1,4 +1,0 @@
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
-export const resumes=sqliteTable("resumes",{id:integer("id").primaryKey({autoIncrement:true}),name:text("name").notNull(),version:text("version").notNull(),fileKey:text("file_key"),createdAt:text("created_at").notNull()});
-export const applications=sqliteTable("applications",{id:integer("id").primaryKey({autoIncrement:true}),company:text("company").notNull(),role:text("role").notNull(),city:text("city").notNull().default(""),stage:text("stage").notNull().default("网申"),resumeId:integer("resume_id").references(()=>resumes.id),appliedAt:text("applied_at").notNull(),nextAction:text("next_action").notNull().default("完善申请信息")});
-export const interviewReviews=sqliteTable("interview_reviews",{id:integer("id").primaryKey({autoIncrement:true}),company:text("company").notNull(),questions:text("questions").notNull(),reflection:text("reflection").notNull().default(""),createdAt:text("created_at").notNull()});

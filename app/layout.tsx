@@ -1,22 +1,5 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
-
-export const metadata: Metadata = {
-  title: "候鸟｜秋招记录与面试复盘",
-  description: "记录秋招投递、掌握关键进度、快速填写网申并沉淀面试经验。",
-  openGraph: {
-    title: "候鸟｜把握每一次秋招机会",
-    description: "你的秋招投递、提醒、网申资料和面试复盘工作台。",
-    images: ["/og.png"],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "候鸟｜把握每一次秋招机会",
-    description: "你的秋招投递、提醒、网申资料和面试复盘工作台。",
-    images: ["/og.png"],
-  },
-};
-
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="zh-CN"><body>{children}</body></html>;
-}
+export const metadata:Metadata={title:"候鸟｜本地秋招助手",description:"无需登录、数据保存在本机的秋招记录应用。",manifest:"/manifest.webmanifest",icons:{icon:"/favicon.svg",apple:"/favicon.svg"},appleWebApp:{capable:true,title:"候鸟",statusBarStyle:"default"}};
+export const viewport:Viewport={themeColor:"#18352f",width:"device-width",initialScale:1};
+export default function RootLayout({children}:{children:React.ReactNode}){return <html lang="zh-CN"><body>{children}</body></html>}

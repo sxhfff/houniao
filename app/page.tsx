@@ -5,7 +5,9 @@ import { PwaRegister } from "./pwa-register";
 
 type Resume = { id: string; name: string; createdAt: string };
 type Application = { id: string; company: string; role: string; city: string; stage: string; appliedAt: string; nextAction: string; resumeId: string; channel?: "官网" | "招聘软件"; jobUrl?: string; softwareName?: string };
-type LocalData = { version: 1; applications: Application[]; resumes: Resume[] };
+type ProfileCategory = "个人信息" | "奖项" | "教育经历" | "实习经历" | "项目经历";
+type ProfileEntry = { id: string; category: ProfileCategory; title: string; organization: string; period: string; details: string };
+type LocalData = { version: 1; applications: Application[]; resumes: Resume[]; profile?: ProfileEntry[] };
 
 const seed: LocalData = {
   version: 1,
@@ -53,6 +55,7 @@ function download(name: string, content: string, type: string) {
 
 const stages = ["全部", "网申", "已投递", "笔试", "一面", "二面", "Offer", "已结束"];
 const tones = ["purple", "blue", "red", "yellow", "green"];
+const profileCategories: ProfileCategory[] = ["个人信息", "奖项", "教育经历", "实习经历", "项目经历"];
 
 export default function Home() {
   const [data, setData] = useState<LocalData>(seed);
@@ -61,6 +64,8 @@ export default function Home() {
   const [showAdd, setShowAdd] = useState(false);
   const [showTools, setShowTools] = useState(false);
   const [showResumes, setShowResumes] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+  const [profileTab, setProfileTab] = useState<ProfileCategory>("个人信息");
   const [channel, setChannel] = useState<"官网" | "招聘软件">("官网");
   const [toast, setToast] = useState("");
   const importRef = useRef<HTMLInputElement>(null);
@@ -70,6 +75,7 @@ export default function Home() {
   const notify = (message: string) => { setToast(message); window.setTimeout(() => setToast(""), 2300); };
   const visible = useMemo(() => filter === "全部" ? data.applications : data.applications.filter(a => a.stage === filter), [data, filter]);
   const resumeName = (id: string) => data.resumes.find(r => r.id === id)?.name ?? "未关联简历";
+  const profile = data.profile ?? [];
 
   const addApplication = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault(); const form = new FormData(event.currentTarget);
@@ -87,6 +93,20 @@ export default function Home() {
     if (!window.confirm(message)) return;
     setData(d => ({ ...d, resumes: d.resumes.filter(r => r.id !== resume.id), applications: d.applications.map(a => a.resumeId === resume.id ? { ...a, resumeId: "" } : a) }));
     notify("简历版本已删除");
+  };
+  const entryText = (entry: ProfileEntry) => [entry.title, entry.organization, entry.period, entry.details].filter(Boolean).join("\n");
+  const copyText = async (text: string, message = "已复制，可直接粘贴") => {
+    try { await navigator.clipboard.writeText(text); notify(message); }
+    catch { const area=document.createElement("textarea");area.value=text;document.body.appendChild(area);area.select();document.execCommand("copy");area.remove();notify(message); }
+  };
+  const addProfileEntry = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault(); const form = new FormData(event.currentTarget);
+    const entry: ProfileEntry = { id: crypto.randomUUID(), category: profileTab, title: String(form.get("title")).trim(), organization: String(form.get("organization") ?? "").trim(), period: String(form.get("period") ?? "").trim(), details: String(form.get("details")).trim() };
+    setData(d => ({ ...d, profile: [...(d.profile ?? []), entry] })); event.currentTarget.reset(); notify("资料已保存到本机");
+  };
+  const categoryText = (category?: ProfileCategory) => {
+    const entries = category ? profile.filter(e => e.category === category) : profile;
+    return entries.map(e => `【${e.category}】\n${entryText(e)}`).join("\n\n");
   };
   const exportBackup = () => download(`候鸟备份-${new Date().toISOString().slice(0,10)}.json`, JSON.stringify(data, null, 2), "application/json");
   const exportCsv = () => {
@@ -109,13 +129,14 @@ export default function Home() {
 
     <section className="content-grid" id="投递"><div className="pipeline"><div className="block-head"><div><small>APPLICATIONS</small><h2>我的投递</h2></div><button className="primary" onClick={() => setShowAdd(true)}>＋ 添加投递</button></div><div className="stage-tabs">{stages.map(s => <button className={filter===s?"selected":""} onClick={() => setFilter(s)} key={s}>{s}{s==="全部"&&<b>{data.applications.length}</b>}</button>)}</div><div className="app-list">{visible.map((a,i) => <article className="app-row" key={a.id}><span className={`company-logo ${tones[i%tones.length]}`}>{a.company[0]}</span><div className="company"><h3>{a.company}</h3><p>{a.role} · {a.city}</p><span className="resume-pill">▧ {resumeName(a.resumeId)}</span><span className="channel-pill">{a.channel??"未记录方式"}{a.channel==="招聘软件"&&a.softwareName?` · ${a.softwareName}`:""}</span>{a.channel==="官网"&&a.jobUrl&&<a className="job-link" href={a.jobUrl} target="_blank" rel="noreferrer">打开职位官网 ↗</a>}</div><span className="applied">{a.appliedAt}</span><select className="stage-select" value={a.stage} aria-label={`${a.company}招聘阶段`} onChange={e => setData(d => ({...d, applications:d.applications.map(x => x.id===a.id?{...x,stage:e.target.value}:x)}))}>{stages.slice(1).map(s=><option key={s}>{s}</option>)}</select><div className="next"><b>{a.nextAction}</b><small>下一步</small></div><button className="more" aria-label={`删除${a.company}`} onClick={() => { if(confirm(`删除 ${a.company} 的投递记录？`)) setData(d=>({...d,applications:d.applications.filter(x=>x.id!==a.id)})); }}>×</button></article>)}</div>{visible.length===0&&<div className="empty">这个阶段还没有投递记录</div>}</div>
 
-      <aside><article className="side-card"><div className="card-icon mint">▤</div><div><small>数据状态</small><h3>{ready?"已保存到本机":"正在读取…"}</h3></div><span className="progress">离线</span><div className="progressbar"><i style={{width:"100%"}} /></div><p>刷新页面和应用升级不会清空数据</p><button onClick={exportBackup}>立即备份 <span>↓</span></button></article><article className="side-card"><div className="card-icon sky">▧</div><div><small>简历库</small><h3>{data.resumes.length} 个简历版本</h3></div><span className="count">{data.applications.length}<small>次关联</small></span><p>投递记录会保留当时使用的简历版本</p><div className="chips">{data.resumes.slice(-2).map(r=><span key={r.id}>{r.name}</span>)}</div><button onClick={()=>setShowResumes(true)}>管理简历版本 <span>→</span></button></article><article className="quote"><span>“</span><p>数据属于你，<br/>选择也始终属于你。</p><small>— 候鸟本地模式</small></article></aside></section>
+      <aside><article className="side-card"><div className="card-icon mint">▤</div><div><small>网申资料库</small><h3>{profile.length} 项个人资料</h3></div><span className="progress">复制</span><div className="progressbar"><i style={{width:`${Math.min(100,profile.length*8)}%`}} /></div><p>完整记录奖项、教育、实习和项目经历</p><button onClick={()=>setShowProfile(true)}>填写与复制 <span>→</span></button></article><article className="side-card"><div className="card-icon sky">▧</div><div><small>简历库</small><h3>{data.resumes.length} 个简历版本</h3></div><span className="count">{data.applications.length}<small>次关联</small></span><p>投递记录会保留当时使用的简历版本</p><div className="chips">{data.resumes.slice(-2).map(r=><span key={r.id}>{r.name}</span>)}</div><button onClick={()=>setShowResumes(true)}>管理简历版本 <span>→</span></button></article><article className="quote"><span>“</span><p>数据属于你，<br/>选择也始终属于你。</p><small>— 候鸟本地模式</small></article></aside></section>
 
     <footer><span>候鸟 · 本地优先秋招助手</span><div><button onClick={exportCsv}>导出 CSV</button><button onClick={exportBackup}>导出备份</button><button onClick={() => importRef.current?.click()}>恢复备份</button></div></footer>
 
     {showAdd&&<div className="modal"><form onSubmit={addApplication}><button type="button" className="close" onClick={()=>setShowAdd(false)}>×</button><small>NEW APPLICATION</small><h2>添加一条投递</h2><div className="form-grid"><label>公司名称<input name="company" required placeholder="例如：网易" /></label><label>申请岗位<input name="role" required placeholder="例如：产品经理" /></label><label>工作城市<input name="city" required placeholder="例如：杭州" /></label><label>招聘阶段<select name="stage" defaultValue="网申">{stages.slice(1).map(s=><option key={s}>{s}</option>)}</select></label><label>投递日期<input type="date" name="appliedAt" required defaultValue={new Date().toISOString().slice(0,10)} /></label><label>使用的简历<select name="resumeId" required>{data.resumes.map(r=><option value={r.id} key={r.id}>{r.name}</option>)}</select></label></div><fieldset className="channel-field"><legend>投递方式</legend><label><input type="radio" name="channel" checked={channel==="官网"} onChange={()=>setChannel("官网")} /> 官网投递</label><label><input type="radio" name="channel" checked={channel==="招聘软件"} onChange={()=>setChannel("招聘软件")} /> 招聘软件</label></fieldset>{channel==="官网"?<label>职位官网网址<input type="text" inputMode="url" name="jobUrl" placeholder="例如：https://jobs.example.com/123" /></label>:<label>招聘软件名称<input name="softwareName" required placeholder="例如：牛客、Boss 直聘、实习僧" /></label>}<label>下一步行动<input name="nextAction" placeholder="例如：8 月 20 日笔试" /></label><button className="submit">保存到本机</button></form></div>}
     {showTools&&<div className="modal"><div className="tool-panel"><button className="close" onClick={()=>setShowTools(false)}>×</button><small>LOCAL DATA</small><h2>数据与备份</h2><p>所有内容保存在当前浏览器的本地数据库中，不会上传到服务器。</p><div className="tool-list"><button onClick={exportBackup}><b>导出完整备份</b><span>换设备或重装前使用</span></button><button onClick={()=>importRef.current?.click()}><b>恢复备份</b><span>会替换当前本机数据</span></button><button onClick={exportCsv}><b>导出 CSV</b><span>可用 Excel 打开投递记录</span></button></div></div></div>}
     {showResumes&&<div className="modal"><div className="tool-panel resume-manager"><button className="close" onClick={()=>setShowResumes(false)}>×</button><small>RESUME LIBRARY</small><h2>简历版本管理</h2><p>删除正在使用的版本不会删除投递记录，只会解除关联。</p><button className="primary add-resume" onClick={addResume}>＋ 添加简历版本</button><div className="resume-list">{data.resumes.map(r=>{const used=data.applications.filter(a=>a.resumeId===r.id).length;return <div className="resume-item" key={r.id}><div><b>{r.name}</b><span>{r.createdAt} · {used} 条投递使用</span></div><button aria-label={`删除${r.name}`} onClick={()=>deleteResume(r)}>删除</button></div>})}{data.resumes.length===0&&<div className="empty">还没有简历版本</div>}</div></div></div>}
+    {showProfile&&<div className="modal profile-modal"><div className="profile-panel"><button className="close" onClick={()=>setShowProfile(false)}>×</button><div className="profile-head"><div><small>APPLICATION PROFILE</small><h2>网申资料库</h2><p>所有信息仅保存在本机，点击即可复制到招聘网站。</p></div><button className="primary" disabled={!profile.length} onClick={()=>copyText(categoryText(),"全部资料已复制")}>复制全部</button></div><div className="profile-tabs">{profileCategories.map(c=><button className={profileTab===c?"selected":""} onClick={()=>setProfileTab(c)} key={c}>{c}<b>{profile.filter(e=>e.category===c).length}</b></button>)}</div><div className="profile-layout"><form className="profile-form" onSubmit={addProfileEntry}><h3>新增{profileTab}</h3><label>{profileTab==="个人信息"?"信息名称":"经历/项目名称"}<input name="title" required placeholder={profileTab==="个人信息"?"例如：手机号、邮箱、政治面貌":"请输入名称"}/></label>{profileTab!=="个人信息"&&<><label>学校 / 公司 / 颁发机构<input name="organization" placeholder="请输入机构名称"/></label><label>时间范围<input name="period" placeholder="例如：2024.07—2024.10"/></label></>}<label>{profileTab==="个人信息"?"信息内容":"详细描述"}<textarea name="details" required rows={5} placeholder={profileTab==="个人信息"?"输入可直接填报的内容":"描述职责、行动、成果，建议使用数字量化"}/></label><button className="submit">保存到本机</button></form><div className="profile-records"><div className="records-head"><h3>已记录内容</h3><button disabled={!profile.some(e=>e.category===profileTab)} onClick={()=>copyText(categoryText(profileTab),`${profileTab}已复制`)}>复制本类全部</button></div>{profile.filter(e=>e.category===profileTab).map(e=><article className="profile-entry" key={e.id}><div><h4>{e.title}</h4>{e.organization&&<b>{e.organization}</b>}{e.period&&<time>{e.period}</time>}<p>{e.details}</p></div><div className="entry-actions"><button onClick={()=>copyText(entryText(e))}>复制</button><button className="danger" onClick={()=>{if(confirm(`删除“${e.title}”？`))setData(d=>({...d,profile:(d.profile??[]).filter(x=>x.id!==e.id)}))}}>删除</button></div></article>)}{!profile.some(e=>e.category===profileTab)&&<div className="empty">还没有{profileTab}，从左侧开始添加</div>}</div></div></div></div>}
     <input ref={importRef} type="file" accept="application/json,.json" hidden onChange={importBackup} />
     {toast&&<div className="toast">✓ {toast}</div>}
   </main>;
